@@ -1,0 +1,2 @@
+When the project is updated
+- Check whether it is necessary to update the corresponding `README.md` content in `trickle/notes/README.md` to keep the documentation aligned with the latest features, architecture, and database schemas.

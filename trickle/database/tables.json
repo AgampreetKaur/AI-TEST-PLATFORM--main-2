@@ -1,0 +1,122 @@
+[
+  {
+    "name": "user",
+    "fields": [
+      {
+        "name": "Name",
+        "type": "text",
+        "description": "User's full name",
+        "options": null
+      },
+      {
+        "name": "Email",
+        "type": "text",
+        "description": "User's email address for login",
+        "options": null
+      },
+      {
+        "name": "Password",
+        "type": "text",
+        "description": "Mock password storage",
+        "options": null
+      }
+    ]
+  },
+  {
+    "name": "chapter",
+    "fields": [
+      {
+        "name": "Name",
+        "type": "text",
+        "description": "Chapter name",
+        "options": null
+      },
+      {
+        "name": "Subject",
+        "type": "text",
+        "description": "Subject like Physics, Chemistry",
+        "options": null
+      },
+      {
+        "name": "ClassLevel",
+        "type": "text",
+        "description": "Class grade",
+        "options": null
+      },
+      {
+        "name": "Status",
+        "type": "text",
+        "description": "Processing status",
+        "options": [
+          "Processing",
+          "Processed",
+          "Failed"
+        ]
+      }
+    ]
+  },
+  {
+    "name": "generated_paper",
+    "fields": [
+      {
+        "name": "Subject",
+        "type": "text",
+        "description": "Subject of the paper",
+        "options": null
+      },
+      {
+        "name": "Chapter",
+        "type": "text",
+        "description": "Chapter name",
+        "options": null
+      },
+      {
+        "name": "SetNumber",
+        "type": "text",
+        "description": "Paper set number",
+        "options": null
+      },
+      {
+        "name": "Questions",
+        "type": "text",
+        "description": "Question paper content",
+        "options": null
+      },
+      {
+        "name": "Answers",
+        "type": "text",
+        "description": "Answer key content",
+        "options": null
+      }
+    ]
+  },
+  {
+    "name": "homework_submission",
+    "fields": [
+      {
+        "name": "StudentName",
+        "type": "text",
+        "description": "Name of the student",
+        "options": null
+      },
+      {
+        "name": "Status",
+        "type": "text",
+        "description": "Validation status",
+        "options": null
+      },
+      {
+        "name": "Score",
+        "type": "text",
+        "description": "Final score given",
+        "options": null
+      },
+      {
+        "name": "Feedback",
+        "type": "text",
+        "description": "Overall AI feedback",
+        "options": null
+      }
+    ]
+  }
+]

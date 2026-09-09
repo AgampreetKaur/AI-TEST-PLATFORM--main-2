@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Parent Portal — AI Assessment System</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+  :root{
+    --indigo:#4F46E5; --indigo-light:#EEF2FF; --blue:#3B82F6; --green:#10B981; --amber:#F59E0B;
+    --page:#F1F5F9; --card:#FFFFFF; --border:#E5E7EB; --ink:#1E293B; --muted:#64748B;
+    --red:#DC2626; --red-bg:#FEF2F2; --orange:#EA580C; --orange-bg:#FFF7ED;
+    --yellow:#CA8A04; --yellow-bg:#FEFCE8; --up:#16A34A; --up-bg:#F0FDF4; --blue-bg:#EFF6FF;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--page);color:var(--ink);font-size:14px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  a{text-decoration:none;color:inherit;}
+  .app{display:flex;min-height:100vh;}
+
+  .sidebar{width:250px;flex-shrink:0;background:#fff;border-right:1px solid var(--border);
+    position:sticky;top:0;height:100vh;display:flex;flex-direction:column;}
+  .brand{background:var(--indigo);color:#fff;display:flex;align-items:center;gap:10px;padding:18px;}
+  .brand svg{width:26px;height:26px;} .brand b{font-size:15px;line-height:1.2;font-weight:600;}
+  .nav{padding:14px 12px;flex:1;}
+  .nav a{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;color:var(--muted);
+    font-weight:500;margin-bottom:4px;cursor:pointer;}
+  .nav a svg{width:18px;height:18px;}
+  .nav a:hover{background:#F8FAFC;color:var(--ink);}
+  .nav a.active{background:var(--indigo-light);color:var(--indigo);}
+  .side-foot{border-top:1px solid var(--border);padding:14px 16px;}
+  .who{display:flex;align-items:center;gap:10px;}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--indigo);color:#fff;display:flex;
+    align-items:center;justify-content:center;font-weight:600;font-size:12px;flex-shrink:0;}
+  .name{font-weight:600;font-size:13px;} .role{font-size:12px;color:var(--muted);}
+  .logout{display:flex;align-items:center;gap:8px;color:var(--red);font-weight:500;margin-top:12px;font-size:13px;}
+  .logout svg{width:16px;height:16px;}
+
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .topbar{background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;
+    justify-content:space-between;gap:16px;padding:14px 28px;}
+  .topbar h1{font-size:19px;margin:0;font-weight:700;}
+  .top-right{display:flex;align-items:center;gap:16px;}
+  .chip{font-size:12px;color:var(--muted);background:#F8FAFC;border:1px solid var(--border);padding:4px 10px;border-radius:999px;}
+  .bell{position:relative;color:var(--muted);} .bell svg{width:20px;height:20px;}
+  .bell::after{content:"";position:absolute;top:-1px;right:-1px;width:7px;height:7px;background:var(--red);border-radius:50%;}
+  .content{padding:24px 28px;flex:1;}
+
+  .section{display:none;} .section.active{display:block;}
+  .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap;}
+  h2{font-size:18px;margin:0 0 4px;font-weight:700;} .sub{color:var(--muted);font-size:13px;margin:0 0 16px;}
+  .btn{background:var(--indigo);color:#fff;border:none;border-radius:8px;padding:9px 15px;font-size:13px;
+    font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;}
+  .btn svg{width:16px;height:16px;} .btn.ghost{background:#fff;color:var(--indigo);border:1px solid var(--indigo);}
+  .btn.sm{padding:6px 12px;font-size:12px;}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:20px;}
+  .stat{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 18px;}
+  .stat .lbl{font-size:13px;color:var(--muted);} .stat .val{font-size:26px;font-weight:700;margin-top:6px;}
+  .stat .val.sm{font-size:19px;}
+  .card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px 20px;margin-bottom:20px;}
+  .card h3{font-size:15px;margin:0 0 14px;font-weight:700;display:flex;align-items:center;gap:8px;}
+  .card h3 svg{width:18px;height:18px;}
+
+  .grid2{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px;}
+  @media(max-width:900px){.grid2{grid-template-columns:1fr;}}
+  .stack{display:flex;flex-direction:column;gap:16px;}
+  .mini-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px;}
+  .mini{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px;}
+  .mini .top{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .tags{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;}
+  .tag{background:var(--indigo-light);color:var(--indigo);font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;}
+  .id{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted);}
+
+  .topic{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-radius:8px;
+    font-size:13px;font-weight:500;margin-bottom:8px;border-left:3px solid transparent;}
+  .t-red{background:var(--red-bg);color:var(--red);border-left-color:var(--red);}
+  .t-orange{background:var(--orange-bg);color:var(--orange);border-left-color:var(--orange);}
+  .t-yellow{background:var(--yellow-bg);color:var(--yellow);border-left-color:var(--yellow);}
+  .t-green{background:var(--up-bg);color:var(--up);border-left-color:var(--green);}
+  .t-blue{background:var(--blue-bg);color:var(--blue);border-left-color:var(--blue);}
+
+  .cmp{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+  .cmp .nm{flex:0 0 140px;font-size:13px;color:var(--muted);}
+  .cmp .track{flex:1;height:14px;background:#F1F5F9;border-radius:999px;overflow:hidden;}
+  .cmp .fill{height:100%;border-radius:999px;} .cmp .n{flex:0 0 42px;text-align:right;font-weight:700;font-size:13px;}
+
+  table{width:100%;border-collapse:collapse;}
+  th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:10px 12px;border-bottom:1px solid var(--border);}
+  td{padding:12px 12px;border-bottom:1px solid #F1F5F9;font-size:13px;vertical-align:top;}
+  .subj{font-weight:600;} .muted{color:var(--muted);}
+  .trend-up{color:var(--up);font-weight:600;white-space:nowrap;} .trend-down{color:var(--red);font-weight:600;white-space:nowrap;}
+  .view{color:var(--indigo);font-weight:600;cursor:pointer;}
+  .badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;}
+  .b-graded{background:var(--up-bg);color:var(--up);} .b-grading{background:var(--yellow-bg);color:var(--yellow);}
+
+  .pills{display:flex;gap:8px;flex-wrap:wrap;}
+  .pill{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 14px;font-size:13px;
+    font-weight:500;cursor:pointer;color:var(--ink);}
+  .pill.active{background:var(--indigo-light);border-color:var(--indigo);color:var(--indigo);}
+
+  label{display:block;font-size:12px;font-weight:600;margin:10px 0 4px;color:var(--ink);}
+  input,select{width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-size:13px;
+    font-family:inherit;background:#fff;color:var(--ink);}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:700px){.form-grid{grid-template-columns:1fr;}}
+  .list-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid #F1F5F9;font-size:13px;gap:12px;}
+  .remove{color:var(--red);cursor:pointer;font-weight:600;font-size:12px;background:none;border:none;}
+  .ok{background:var(--up-bg);color:var(--up);border:1px solid #BBF7D0;border-radius:8px;padding:10px 14px;font-size:13px;margin-top:12px;}
+  .search{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--muted);}
+  .search svg{width:15px;height:15px;} .search input{border:none;width:150px;padding:0;}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;}
+  .note{margin-top:16px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;} .note svg{width:14px;height:14px;}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:18px;border-top:1px solid var(--border);background:#fff;}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><i data-lucide="graduation-cap"></i><b>AI Assessment<br>System</b></div>
+    <nav class="nav" id="nav">
+      <a data-s="dashboard" class="active"><i data-lucide="layout-grid"></i>Dashboard</a>
+      <a data-s="children"><i data-lucide="users"></i>My Children</a>
+      <a data-s="homework"><i data-lucide="file-text"></i>Homework</a>
+      <a data-s="reports"><i data-lucide="bar-chart-3"></i>Reports &amp; Analytics</a>
+      <a data-s="uploads"><i data-lucide="upload"></i>Uploads</a>
+      <a data-s="settings"><i data-lucide="settings"></i>Settings</a>
+    </nav>
+    <div class="side-foot">
+      <div class="who"><div class="avatar">PS</div><div><div class="name">Priya Sharma</div><div class="role">Parent</div></div></div>
+      <a class="logout"><i data-lucide="log-out"></i>Logout</a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <h1 id="page-title">Dashboard</h1>
+      <div class="top-right"><span class="chip">Prototype · sample data</span><span class="bell"><i data-lucide="bell"></i></span></div>
+    </div>
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <section class="section active" id="s-dashboard">
+        <h2 id="greet">Welcome back, Priya</h2>
+        <p class="sub">Here's how your children are doing.</p>
+        <div class="cards" id="dash-stats"></div>
+        <div class="card"><h3><i data-lucide="users"></i>Your children</h3><div class="mini-grid" id="dash-children"></div></div>
+        <div class="card"><h3><i data-lucide="activity"></i>Recent activity</h3><div id="dash-activity"></div></div>
+      </section>
+
+      <!-- MY CHILDREN -->
+      <section class="section" id="s-children">
+        <div class="row"><div><h2>My children</h2><p class="sub" style="margin:0;">Create and manage your children's profiles.</p></div>
+          <button class="btn" onclick="toggleAddChild()"><i data-lucide="plus"></i>Add child</button></div>
+        <div class="card" id="add-child-card" style="display:none;">
+          <h3><i data-lucide="user-plus"></i>Add a child</h3>
+          <div class="form-grid">
+            <div><label>Child's name</label><input id="c-name" placeholder="e.g. Rohan Sharma"></div>
+            <div><label>Class</label><select id="c-class"><option>Class 6</option><option>Class 7</option><option>Class 8</option><option>Class 9</option><option>Class 10</option></select></div>
+            <div><label>School</label><input id="c-school" placeholder="e.g. Greenwood High"></div>
+            <div><label>Subjects (comma separated)</label><input id="c-subj" placeholder="Maths, Science, English"></div>
+          </div>
+          <div style="margin-top:14px;"><button class="btn" onclick="addChild()">Create profile</button></div>
+          <div id="add-child-ok"></div>
+        </div>
+        <div class="mini-grid" id="children-list"></div>
+      </section>
+
+      <!-- HOMEWORK -->
+      <section class="section" id="s-homework">
+        <h2>Homework</h2><p class="sub">Upload homework and see how it was graded.</p>
+        <div class="card">
+          <h3><i data-lucide="upload"></i>Upload homework</h3>
+          <div class="form-grid">
+            <div><label>For child</label><select id="hw-child"></select></div>
+            <div><label>Subject / chapter</label><input id="hw-subject" placeholder="e.g. Physics — Energy"></div>
+            <div><label>Answer sheet (image)</label><input type="file" id="hw-file" accept="image/*"></div>
+            <div style="display:flex;align-items:flex-end;"><button class="btn" onclick="uploadHomework()"><i data-lucide="wand-2"></i>Upload &amp; check</button></div>
+          </div>
+          <div id="hw-ok"></div>
+        </div>
+        <div class="card">
+          <div class="row" style="margin-bottom:12px;"><h3 style="margin:0;">Submissions</h3>
+            <div class="pills" id="hw-filter"></div></div>
+          <table><thead><tr><th>Child</th><th>Subject / chapter</th><th>Date</th><th>Score</th><th>Status</th></tr></thead>
+            <tbody id="hw-body"></tbody></table>
+        </div>
+      </section>
+
+      <!-- REPORTS -->
+      <section class="section" id="s-reports">
+        <div class="row"><div class="pills" id="rep-pills"></div>
+          <button class="btn"><i data-lucide="download"></i><span id="export-lbl">Export report</span></button></div>
+        <div class="cards" id="rep-stats"></div>
+        <div class="grid2">
+          <div class="card"><h3>Chapter-wise performance</h3>
+            <div style="position:relative;height:300px;"><canvas id="chapterChart" role="img" aria-label="Bar chart of average score by chapter"></canvas></div></div>
+          <div class="stack">
+            <div class="card"><h3 style="color:var(--orange)"><i data-lucide="alert-triangle"></i>Weak topics</h3><div id="rep-weak"></div></div>
+            <div class="card"><h3 style="color:var(--up)"><i data-lucide="award"></i>Strong topics</h3><div id="rep-strong"></div></div>
+          </div>
+        </div>
+        <div class="card"><h3>Classwork vs independent (AI) test</h3>
+          <div class="cmp"><span class="nm">Classwork / homework</span><span class="track"><span class="fill" id="cw-fill" style="background:var(--indigo)"></span></span><span class="n" id="cw-num"></span></div>
+          <div class="cmp"><span class="nm">AI-generated test</span><span class="track"><span class="fill" id="ai-fill" style="background:var(--amber)"></span></span><span class="n" id="ai-num"></span></div>
+          <div class="muted" id="gap-note" style="font-size:12px;margin-top:8px;"></div>
+        </div>
+        <div class="card">
+          <div class="row" style="margin-bottom:12px;"><h3 style="margin:0;">Subject &amp; chapter breakdown</h3>
+            <div class="search"><i data-lucide="search"></i><input id="tsearch" placeholder="Search subject..."></div></div>
+          <table><thead><tr><th>Subject / Chapter</th><th>Average</th><th>Trend</th><th>Common mistakes (from past homework)</th><th style="text-align:right">Action</th></tr></thead>
+            <tbody id="rep-table"></tbody></table>
+        </div>
+        <div class="actions">
+          <button class="btn ghost" onclick="navTo('homework')"><i data-lucide="upload"></i><span id="act-upload">Upload homework</span></button>
+          <button class="btn ghost" onclick="navTo('uploads')"><i data-lucide="file-text"></i>Upload report card</button>
+        </div>
+        <div class="note"><i data-lucide="lock"></i>Summary view — full per-question detail stays on your child's login.</div>
+      </section>
+
+      <!-- UPLOADS -->
+      <section class="section" id="s-uploads">
+        <h2>Uploads</h2><p class="sub">Give the system more context about your child and school.</p>
+        <div class="card">
+          <h3><i data-lucide="file-text"></i>Report cards</h3>
+          <p class="muted" style="font-size:13px;margin:0 0 12px;">Upload a report card so the system understands where your child stands in each subject.</p>
+          <div class="form-grid">
+            <div><label>For child</label><select id="rc-child"></select></div>
+            <div><label>Term / label</label><input id="rc-term" placeholder="e.g. Term 1"></div>
+            <div><label>File</label><input type="file" id="rc-file"></div>
+            <div style="display:flex;align-items:flex-end;"><button class="btn" onclick="addReportCard()"><i data-lucide="upload"></i>Upload</button></div>
+          </div>
+          <div id="rc-list" style="margin-top:14px;"></div>
+        </div>
+        <div class="card">
+          <h3><i data-lucide="book-open"></i>School books</h3>
+          <p class="muted" style="font-size:13px;margin:0 0 12px;">Pick the books used at your child's school — chapters for homework checking are taken from these.</p>
+          <div style="display:flex;gap:10px;"><input id="book-input" placeholder="e.g. NCERT Science Class 8" style="flex:1;"><button class="btn" onclick="addBook()"><i data-lucide="plus"></i>Add</button></div>
+          <div id="book-list" style="margin-top:14px;"></div>
+        </div>
+      </section>
+
+      <!-- SETTINGS (placeholder) -->
+      <section class="section" id="s-settings">
+        <h2>Settings</h2><p class="sub">Account and notification settings will go here.</p>
+        <div class="card"><p class="muted" style="margin:0;">Nothing to configure in this prototype yet.</p></div>
+      </section>
+
+    </div>
+    <footer>© 2026 AI Test Paper &amp; Homework Validation System. All rights reserved.</footer>
+  </div>
+</div>
+
+<script>
+const children = [
+  { id:"STU-7A21", name:"Aarav", cls:"Class 7", school:"Greenwood High", subjects:["Physics","Maths","English"],
+    avg:82, trend:6, weak:"Thermodynamics",
+    chapters:[["Ch 1: Motion",85],["Ch 2: Force",78],["Ch 3: Work",92],["Ch 4: Energy",71]],
+    weakTopics:[["Thermodynamics",65],["Kinetic Energy",70],["Vectors",72]],
+    strongTopics:[["Work",92],["Motion",85]], classwork:85, aitest:68,
+    table:[["Physics — Motion","85%",3,"Minor slips reading motion graphs"],
+      ["Physics — Force","78%",-2,"Mixes up mass and weight; unit errors"],
+      ["Physics — Energy","71%",-4,"Confuses heat and temperature; formula errors"],
+      ["Maths — Algebra","88%",5,"Sign mistakes when moving terms across ="],
+      ["English — Grammar","84%",1,"Tense agreement in longer sentences"]] },
+  { id:"STU-9B07", name:"Diya", cls:"Class 9", school:"Greenwood High", subjects:["Maths","Science","English"],
+    avg:76, trend:-3, weak:"Trigonometry",
+    chapters:[["Ch 1: Number",80],["Ch 2: Algebra",64],["Ch 3: Geometry",82],["Ch 4: Trig",68]],
+    weakTopics:[["Trigonometry",64],["Quadratics",69],["Probability",73]],
+    strongTopics:[["Geometry",88],["Grammar",85]], classwork:80, aitest:66,
+    table:[["Maths — Algebra","64%",-6,"Errors factoring quadratics; sign errors"],
+      ["Maths — Trigonometry","68%",-3,"Wrong ratio (sin/cos); calculator in wrong mode"],
+      ["Maths — Geometry","82%",4,"Sometimes skips justifying steps"],
+      ["Science — Chemistry","82%",2,"Balancing equations occasionally off"],
+      ["English — Writing","88%",3,"Runs sentences together; comma splices"]] },
+];
+let homework = [
+  {child:"Aarav",subject:"Physics — Energy",date:"2 Sep",score:"9/10",status:"Graded"},
+  {child:"Aarav",subject:"Maths — Algebra",date:"29 Aug",score:"8/10",status:"Graded"},
+  {child:"Diya",subject:"Maths — Trigonometry",date:"1 Sep",score:"6/10",status:"Graded"},
+  {child:"Diya",subject:"English — Writing",date:"28 Aug",score:"9/10",status:"Graded"},
+];
+let reportCards = [{child:"Aarav",term:"Term 1",file:"aarav_term1.pdf",date:"12 Aug"},{child:"Diya",term:"Term 1",file:"diya_term1.pdf",date:"12 Aug"}];
+let books = ["NCERT Physics Class 7","NCERT Mathematics Class 7","Honeycomb (English) Class 7","NCERT Science Class 9","NCERT Mathematics Class 9"];
+
+let selected = 0, chapterChart = null, hwFilter = "All";
+const $ = id => document.getElementById(id);
+const initials = n => n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+const trendHTML = t => t>=0 ? `<span class="trend-up">&#8599; +${t}%</span>` : `<span class="trend-down">&#8600; ${t}%</span>`;
+const avgAll = () => Math.round(children.reduce((s,c)=>s+c.avg,0)/children.length);
+
+/* ---------- navigation ---------- */
+const titles = {dashboard:"Dashboard",children:"My Children",homework:"Homework",reports:"Reports & Analytics",uploads:"Uploads",settings:"Settings"};
+function navTo(s){
+  document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));
+  $('s-'+s).classList.add('active');
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('active', a.dataset.s===s));
+  $('page-title').textContent = titles[s];
+  if(s==='reports'){ renderReports(); if(chapterChart) chapterChart.resize(); }
+  if(s==='dashboard') renderDashboard();
+  if(s==='children') renderChildren();
+  if(s==='homework') renderHomework();
+  if(s==='uploads') renderUploads();
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('#nav a').forEach(a=> a.addEventListener('click', ()=>{ if(a.dataset.s) navTo(a.dataset.s); }));
+
+/* ---------- dashboard ---------- */
+function renderDashboard(){
+  const assignments = homework.length;
+  const worst = [...children].sort((a,b)=>a.trend-b.trend)[0];
+  $('dash-stats').innerHTML =
+    stat("Children", children.length) +
+    stat("Assignments logged", assignments) +
+    stat("Average score", avgAll()+"%") +
+    stat("Needs attention", worst.name+" ("+worst.weak+")", true);
+  $('dash-children').innerHTML = children.map((c,i)=>`
+    <div class="mini"><div class="top"><div class="avatar">${initials(c.name)}</div>
+      <div><div class="name">${c.name}</div><div class="role">${c.cls} · ${c.school}</div></div></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:22px;font-weight:700;">${c.avg}%</span>${trendHTML(c.trend)}</div>
+      <div style="margin-top:12px;"><button class="btn sm" onclick="goReports(${i})">View reports</button></div>
+    </div>`).join('');
+  const acts = homework.map(h=>`<div class="list-row"><span><b>${h.child}</b> submitted ${h.subject}</span>
+    <span class="muted">${h.date} · <b style="color:var(--ink)">${h.score}</b></span></div>`).join('');
+  $('dash-activity').innerHTML = acts;
+}
+const stat = (l,v,sm)=>`<div class="stat"><div class="lbl">${l}</div><div class="val ${sm?'sm':''}">${v}</div></div>`;
+
+/* ---------- my children ---------- */
+function toggleAddChild(){ const c=$('add-child-card'); c.style.display = c.style.display==='none'?'block':'none'; }
+function addChild(){
+  const name=$('c-name').value.trim(); if(!name){ $('c-name').focus(); return; }
+  const id="STU-"+Math.floor(1000+Math.random()*9000)+String.fromCharCode(65+Math.floor(Math.random()*26));
+  const subjects=($('c-subj').value||"").split(",").map(s=>s.trim()).filter(Boolean);
+  children.push({id,name,cls:$('c-class').value,school:$('c-school').value||"—",subjects,avg:0,trend:0,weak:"—",
+    chapters:[["Ch 1",0],["Ch 2",0],["Ch 3",0],["Ch 4",0]],weakTopics:[],strongTopics:[],classwork:0,aitest:0,table:[]});
+  $('add-child-ok').innerHTML = `<div class="ok">Profile created for <b>${name}</b>. Student ID: <b>${id}</b> — share this with your child and set their password.</div>`;
+  $('c-name').value=$('c-school').value=$('c-subj').value="";
+  renderChildren(); renderChildDropdowns();
+}
+function renderChildren(){
+  $('children-list').innerHTML = children.map((c,i)=>`
+    <div class="mini"><div class="top"><div class="avatar">${initials(c.name)}</div>
+      <div><div class="name">${c.name}</div><div class="role">${c.cls} · ${c.school}</div></div></div>
+      <div class="id">${c.id}</div>
+      <div class="tags">${c.subjects.map(s=>`<span class="tag">${s}</span>`).join('')||'<span class="muted" style="font-size:12px">No subjects yet</span>'}</div>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn sm" onclick="goReports(${i})">View reports</button>
+        <button class="btn ghost sm" onclick="alert('Password reset link sent (demo).')">Reset password</button></div>
+    </div>`).join('');
+}
+
+/* ---------- homework ---------- */
+function renderChildDropdowns(){
+  const opts = children.map(c=>`<option>${c.name}</option>`).join('');
+  ['hw-child','rc-child'].forEach(id=>{ if($(id)) $(id).innerHTML=opts; });
+}
+function renderHomework(){
+  const names=["All",...children.map(c=>c.name)];
+  $('hw-filter').innerHTML = names.map(n=>`<button class="pill ${n===hwFilter?'active':''}" onclick="setHwFilter('${n}')">${n}</button>`).join('');
+  const rows = homework.filter(h=>hwFilter==="All"||h.child===hwFilter);
+  $('hw-body').innerHTML = rows.map(h=>`<tr><td class="subj">${h.child}</td><td>${h.subject}</td><td class="muted">${h.date}</td>
+    <td><b>${h.score}</b></td><td><span class="badge ${h.status==='Graded'?'b-graded':'b-grading'}">${h.status}</span></td></tr>`).join('')
+    || `<tr><td colspan="5" class="muted" style="text-align:center;padding:20px;">No submissions yet.</td></tr>`;
+}
+function setHwFilter(n){ hwFilter=n; renderHomework(); }
+function uploadHomework(){
+  const child=$('hw-child').value, subject=$('hw-subject').value.trim()||"Untitled";
+  const rec={child,subject,date:"Today",score:"—",status:"Grading"};
+  homework.unshift(rec); hwFilter="All"; renderHomework();
+  $('hw-ok').innerHTML = `<div class="ok">Uploaded for <b>${child}</b>. The AI is checking it…</div>`;
+  $('hw-subject').value="";
+  setTimeout(()=>{ rec.score=(6+Math.floor(Math.random()*4))+"/10"; rec.status="Graded"; rec.date="Today";
+    renderHomework(); $('hw-ok').innerHTML=`<div class="ok">Graded — <b>${child}</b> scored <b>${rec.score}</b>.</div>`; }, 1600);
+}
+
+/* ---------- uploads ---------- */
+function renderUploads(){
+  $('rc-list').innerHTML = reportCards.map((r,i)=>`<div class="list-row"><span><b>${r.child}</b> · ${r.term} · <span class="muted">${r.file}</span></span>
+    <span style="display:flex;gap:12px;align-items:center;"><span class="muted">${r.date}</span><button class="remove" onclick="delReport(${i})">Remove</button></span></div>`).join('')
+    || `<div class="muted" style="font-size:13px;">No report cards uploaded yet.</div>`;
+  $('book-list').innerHTML = books.map((b,i)=>`<div class="list-row"><span>${b}</span><button class="remove" onclick="delBook(${i})">Remove</button></div>`).join('')
+    || `<div class="muted" style="font-size:13px;">No books added yet.</div>`;
+}
+function addReportCard(){ const child=$('rc-child').value, term=$('rc-term').value.trim()||"Report";
+  reportCards.push({child,term,file:(child+"_"+term+".pdf").toLowerCase().replace(/\s+/g,'_'),date:"Today"}); $('rc-term').value=""; renderUploads(); }
+function delReport(i){ reportCards.splice(i,1); renderUploads(); }
+function addBook(){ const v=$('book-input').value.trim(); if(!v) return; books.push(v); $('book-input').value=""; renderUploads(); }
+function delBook(i){ books.splice(i,1); renderUploads(); }
+
+/* ---------- reports ---------- */
+function goReports(i){ selected=i; navTo('reports'); }
+function topicHTML(list,tone){ if(!list.length) return '<div class="muted" style="font-size:13px;">No data yet.</div>';
+  return list.map((x,i)=>{ const cls= tone==="weak"?["t-red","t-orange","t-yellow"][i%3]:["t-green","t-blue"][i%2];
+    return `<div class="topic ${cls}"><span>${i+1}. ${x[0]}</span><span>Avg ${x[1]}%</span></div>`; }).join(''); }
+function renderRepTable(){
+  const k=children[selected], q=($('tsearch').value||"").toLowerCase();
+  $('rep-table').innerHTML = (k.table||[]).filter(r=>r[0].toLowerCase().includes(q)).map(r=>
+    `<tr><td class="subj">${r[0]}</td><td>${r[1]}</td><td>${trendHTML(r[2])}</td><td class="muted">${r[3]}</td>
+     <td style="text-align:right"><span class="view">View</span></td></tr>`).join('')
+    || `<tr><td colspan="5" class="muted" style="text-align:center;padding:16px;">No graded homework yet.</td></tr>`;
+}
+function renderReports(){
+  const k=children[selected];
+  $('rep-pills').innerHTML = children.map((c,i)=>`<button class="pill ${i===selected?'active':''}" onclick="selReport(${i})">${c.name} · ${c.cls}</button>`).join('');
+  $('export-lbl').textContent = "Export "+k.name+"'s report";
+  $('act-upload').textContent = "Upload homework for "+k.name;
+  $('rep-stats').innerHTML = stat("Average score",k.avg+"%") + stat("Assignments",homework.filter(h=>h.child===k.name).length)
+    + `<div class="stat"><div class="lbl">This month</div><div class="val">${trendHTML(k.trend)}</div></div>` + stat("Needs practice",k.weak,true);
+  $('rep-weak').innerHTML = topicHTML(k.weakTopics,"weak");
+  $('rep-strong').innerHTML = topicHTML(k.strongTopics,"strong");
+  $('cw-fill').style.width=k.classwork+"%"; $('cw-num').textContent=k.classwork+"%";
+  $('ai-fill').style.width=k.aitest+"%"; $('ai-num').textContent=k.aitest+"%";
+  $('gap-note').textContent = k.classwork? "Gap of "+(k.classwork-k.aitest)+" points — "+k.name+" does better with help than on independent tests." : "No test data yet.";
+  renderRepTable();
+  const labels=k.chapters.map(c=>c[0]), data=k.chapters.map(c=>c[1]);
+  if(chapterChart){ chapterChart.data.labels=labels; chapterChart.data.datasets[0].data=data; chapterChart.update(); }
+}
+function selReport(i){ selected=i; renderReports(); }
+
+/* ---------- boot ---------- */
+window.addEventListener('DOMContentLoaded', ()=>{
+  if(window.lucide) lucide.createIcons();
+  chapterChart = new Chart($('chapterChart'), {
+    type:'bar', data:{ labels:children[0].chapters.map(c=>c[0]),
+      datasets:[{ data:children[0].chapters.map(c=>c[1]), backgroundColor:["#6366F1","#3B82F6","#10B981","#F59E0B"], borderRadius:6, barThickness:60 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ y:{beginAtZero:true,max:100,ticks:{stepSize:10,color:"#94A3B8"},grid:{color:"#F1F5F9"}}, x:{ticks:{color:"#64748B"},grid:{display:false}} } }
+  });
+  $('tsearch').addEventListener('input', renderRepTable);
+  renderChildDropdowns();
+  renderDashboard();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        Login - AI Assessment System
+    </title>
+
+
+    <!-- React -->
+
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/react@18/umd/react.production.min.js"></script>
+
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/react-dom@18/umd/react-dom.production.min.js"></script>
+
+
+    <!-- Babel -->
+
+    <script src="https://resource.trickle.so/vendor_lib/unpkg/@babel/standalone/babel.min.js"></script>
+
+
+    <!-- Tailwind -->
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+
+    <!-- IMPORTANT: Supabase -->
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+
+    <!-- Icons -->
+
+    <link
+        href="https://resource.trickle.so/vendor_lib/unpkg/lucide-static@0.516.0/font/lucide.css"
+        rel="stylesheet"
+    >
+
+
+    <style type="text/tailwindcss">
+
+        @layer theme {
+
+            :root {
+
+                --primary: #4f46e5;
+
+                --primary-hover: #4338ca;
+
+                --bg-body: #f8fafc;
+
+            }
+
+        }
+
+
+        @layer base {
+
+            body {
+
+                @apply bg-[var(--bg-body)] text-gray-900 antialiased font-sans;
+
+            }
+
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+    <div id="root"></div>
+
+
+    <script src="config.js"></script>
+
+    <script
+        type="text/babel"
+        src="utils/api.js"
+    ></script>
+
+    <script
+        type="text/babel"
+        src="login-app.js"
+    ></script>
+
+</body>
+
+</html>
