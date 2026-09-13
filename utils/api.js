@@ -475,106 +475,108 @@ const authAPI = {
     return user;
 
   },
-
-
   signup: async (
-    name,
+  name,
+  address,
+  qualification,
+  profession,
+  spouseName,
+  spouseDetails,
+  email,
+  password
+) => {
+
+  const supabase = getSupabaseClient();
+
+  const {
+    data,
+    error
+  } = await supabase.auth.signUp({
     email,
-    password
-  ) => {
+    password,
 
-    const supabase =
-      getSupabaseClient();
-
-
-    const {
-      data,
-      error
-    } =
-      await supabase.auth.signUp({
-
-        email,
-
-        password,
-
-        options: {
-
-          data: {
-
-            name,
-
-            full_name: name,
-
-            role: "User"
-
-          }
-
-        }
-
-      });
-
-
-    if (error) {
-
-      throw new Error(
-        error.message ||
-        "Signup failed"
-      );
-
+    options: {
+      data: {
+        name,
+        full_name: name,
+        role: "parent"
+      }
     }
+  });
 
+  if (error) {
+    throw new Error(
+      error.message || "Signup failed"
+    );
+  }
 
-    if (!data.user) {
+  if (!data.user) {
+    throw new Error(
+      "Signup failed: no user returned."
+    );
+  }
 
-      throw new Error(
-        "Signup failed: no user returned."
-      );
+  // ----------------------------------------------------------
+  // If email verification is enabled
+  // ----------------------------------------------------------
 
-    }
-
-
-    if (!data.session) {
-
-      return {
-
-        id: data.user.id,
-
-        Name: name,
-
-        Email: data.user.email,
-
-        Role: "User",
-
-        RequiresEmailVerification: true
-
-      };
-
-    }
-
-
-    const user = {
-
+  if (!data.session) {
+    return {
       id: data.user.id,
-
       Name: name,
-
       Email: data.user.email,
+      Role: "parent",
 
-      Role: "User"
-
+      RequiresEmailVerification: true
     };
+  }
 
+  // ----------------------------------------------------------
+  // Create local parent profile
+  // ----------------------------------------------------------
 
-    localStorage.setItem(
-      "auth_user",
-      JSON.stringify(user)
+  try {
+
+    await directoryAPI.createParent({
+      name,
+      address,
+      qualification,
+      profession,
+      spouse_name: spouseName,
+      spouse_details: spouseDetails
+    });
+
+  } catch (profileError) {
+
+    console.error(
+      "Parent profile creation failed:",
+      profileError
     );
 
+    throw new Error(
+      profileError.message ||
+      "Account created, but parent profile could not be created."
+    );
+  }
 
-    return user;
+  // ----------------------------------------------------------
+  // Store authenticated user
+  // ----------------------------------------------------------
 
-  },
+  const user = {
+    id: data.user.id,
+    Name: name,
+    Email: data.user.email,
+    Role: "parent"
+  };
 
+  localStorage.setItem(
+    "auth_user",
+    JSON.stringify(user)
+  );
+
+  return user;
+},
 
   logout: async () => {
 
@@ -627,24 +629,32 @@ const directoryAPI = {
     );
 
   },
+  createParent: async ({
+  name,
+  address,
+  qualification,
+  profession,
+  spouse_name,
+  spouse_details
+}) => {
 
+  return backendFetch(
+    "/directory/parent",
+    {
+      method: "POST",
 
-  createParent: async (
-    name
-  ) => {
+      body: JSON.stringify({
+        name: name || null,
+        address: address || null,
+        qualification: qualification || null,
+        profession: profession || null,
+        spouse_name: spouse_name || null,
+        spouse_details: spouse_details || null
+      })
+    }
+  );
 
-    return backendFetch(
-      "/directory/parent",
-      {
-        method: "POST",
-
-        body: JSON.stringify({
-          name
-        })
-      }
-    );
-
-  },
+},
 
 
   createStudent: async (
