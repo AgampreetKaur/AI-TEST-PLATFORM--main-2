@@ -1,19 +1,69 @@
 function Header({ title, onMenuClick }) {
     const [notifOpen, setNotifOpen] = React.useState(false);
-    const [hasUnread, setHasUnread] = React.useState(true);
+    const [notifications, setNotifications] = React.useState([]);
+    const [unreadCount, setUnreadCount] = React.useState(0);
     const notifRef = React.useRef(null);
+    const knownIdsRef = React.useRef(new Set());
 
-    // Placeholder notification list — swap for a real GET /notifications
-    // call once the backend has an endpoint for it.
-    const notifications = [
-        { id: 1, text: "Your Physics — Energy homework has been graded.", time: "2h ago", icon: "clipboard-check", color: "text-emerald-600 bg-emerald-50" },
-        { id: 2, text: "New topic detected as a weak area: Thermodynamics.", time: "1d ago", icon: "triangle-alert", color: "text-orange-600 bg-orange-50" },
-        { id: 3, text: "A new chapter was added by your teacher.", time: "3d ago", icon: "book-open", color: "text-blue-600 bg-blue-50" },
-    ];
+    const iconFor = (type) => {
+        if (type === "test_starting") return { icon: "zap", color: "text-emerald-600 bg-emerald-50" };
+        if (type === "submit_reminder") return { icon: "alarm-clock", color: "text-orange-600 bg-orange-50" };
+        return { icon: "calendar-clock", color: "text-blue-600 bg-blue-50" };
+    };
 
-    const toggleNotif = () => {
-        setNotifOpen((open) => !open);
-        setHasUnread(false); // opening the panel marks everything as read
+    const timeAgo = (isoString) => {
+        if (!isoString) return "";
+        const diffMs = Date.now() - new Date(isoString).getTime();
+        const mins = Math.floor(diffMs / 60000);
+        if (mins < 1) return "just now";
+        if (mins < 60) return `${mins}m ago`;
+        const hours = Math.floor(mins / 60);
+        if (hours < 24) return `${hours}h ago`;
+        return `${Math.floor(hours / 24)}d ago`;
+    };
+
+    const loadNotifications = async (isPoll) => {
+        try {
+            const result = await API.notifications.listMine();
+
+            if (isPoll && typeof Notification !== "undefined" && Notification.permission === "granted") {
+                result.notifications.forEach((n) => {
+                    if (!knownIdsRef.current.has(n.id)) {
+                        new Notification(n.title, { body: n.message || "" });
+                    }
+                });
+            }
+
+            knownIdsRef.current = new Set(result.notifications.map((n) => n.id));
+            setNotifications(result.notifications);
+            setUnreadCount(result.unread_count);
+        } catch (e) {
+            console.error("Failed to load notifications:", e);
+        }
+    };
+
+    React.useEffect(() => {
+        loadNotifications(false);
+
+        if (typeof Notification !== "undefined" && Notification.permission === "default") {
+            Notification.requestPermission();
+        }
+
+        const interval = setInterval(() => loadNotifications(true), 20000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const toggleNotif = async () => {
+        const opening = !notifOpen;
+        setNotifOpen(opening);
+        if (opening && unreadCount > 0) {
+            try {
+                await API.notifications.markAllRead();
+                setUnreadCount(0);
+            } catch (e) {
+                console.error("Failed to mark notifications read:", e);
+            }
+        }
     };
 
     // close the dropdown when clicking anywhere outside it
@@ -47,7 +97,7 @@ function Header({ title, onMenuClick }) {
                         aria-label="Notifications"
                     >
                         <div className="icon-bell text-xl"></div>
-                        {hasUnread && (
+                        {unreadCount > 0 && (
                             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
                         )}
                     </button>
@@ -62,17 +112,21 @@ function Header({ title, onMenuClick }) {
                                 {notifications.length === 0 ? (
                                     <p className="text-sm text-gray-400 text-center py-6">No notifications yet.</p>
                                 ) : (
-                                    notifications.map((n) => (
-                                        <div key={n.id} className="px-4 py-3 flex items-start gap-3 hover:bg-gray-50">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${n.color}`}>
-                                                <div className={`icon-${n.icon} text-sm`}></div>
+                                    notifications.map((n) => {
+                                        const { icon, color } = iconFor(n.type);
+                                        return (
+                                            <div key={n.id} className="px-4 py-3 flex items-start gap-3 hover:bg-gray-50">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${color}`}>
+                                                    <div className={`icon-${icon} text-sm`}></div>
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-sm text-gray-800 leading-snug">{n.title}</p>
+                                                    {n.message && <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>}
+                                                    <p className="text-xs text-gray-400 mt-0.5">{timeAgo(n.created_at)}</p>
+                                                </div>
                                             </div>
-                                            <div className="min-w-0">
-                                                <p className="text-sm text-gray-800 leading-snug">{n.text}</p>
-                                                <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
-                                            </div>
-                                        </div>
-                                    ))
+                                        );
+                                    })
                                 )}
                             </div>
                         </div>

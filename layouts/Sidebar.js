@@ -11,6 +11,16 @@ function Sidebar({ currentPath, isOpen, onClose }) {
         }
     };
     const currentUser = getSafeUser();
+    const role = (currentUser && currentUser.Role) || 'student';
+
+    // Admins have their own portal — redirect immediately if they somehow
+    // land on a student page.
+    if (role === 'admin' && typeof window !== 'undefined' &&
+        !window.location.pathname.endsWith('admin-portal.html')) {
+        window.location.href = 'admin-portal.html';
+        return null;
+    }
+
     const navItems = [
         { name: 'Dashboard', icon: 'layout-dashboard', path: 'index.html' },
         { name: 'Chapters', icon: 'book-open', path: 'chapters.html' },
@@ -96,7 +106,9 @@ function Sidebar({ currentPath, isOpen, onClose }) {
                             <p className="text-sm font-medium text-gray-900 truncate">
                                 {(currentUser && currentUser.Name) || 'Student'}
                             </p>
-                            <p className="text-xs text-gray-500 truncate">Student</p>
+                            <p className="text-xs text-gray-500 truncate capitalize">
+                                {role === 'admin' ? 'Administrator' : role === 'parent' ? 'Parent' : 'Student'}
+                            </p>
                         </div>
                     </div>
                     <button 
