@@ -961,11 +961,17 @@ const testsAPI = {
     scheduledAtISO,
     durationMinutes,
     questions,
+    testMode = "mcq",
+    paperText,
+    answerKeyText,
   }) => {
 
     if (!studentId) throw new Error("Please select a child first.");
     if (!scheduledAtISO) throw new Error("Please choose a date and time.");
-    if (!questions || !questions.length) {
+
+    if (testMode === "printed") {
+      if (!paperText) throw new Error("Generate the paper before scheduling.");
+    } else if (!questions || !questions.length) {
       throw new Error("Generate the questions before scheduling.");
     }
 
@@ -978,7 +984,10 @@ const testsAPI = {
         chapter: chapter || null,
         scheduled_at: scheduledAtISO,
         duration_minutes: durationMinutes || null,
-        questions,
+        test_mode: testMode,
+        questions: testMode === "printed" ? null : questions,
+        paper_text: testMode === "printed" ? paperText : null,
+        answer_key_text: testMode === "printed" ? answerKeyText : null,
       }),
     });
   },
@@ -1010,6 +1019,12 @@ const testsAPI = {
   // Parent or student: full result breakdown of a completed test.
   getResult: async (testId) => {
     return backendFetch(`/tests/${encodeURIComponent(testId)}/result`);
+  },
+
+  // Parent or student: the plain-text paper for a "printed" test.
+  // Students get the question paper only; parents also get the answer key.
+  getPaper: async (testId) => {
+    return backendFetch(`/tests/${encodeURIComponent(testId)}/paper`);
   },
 
   // Parent: delete a scheduled test.
@@ -1252,19 +1267,9 @@ Return a JSON array where each element is:
     const countByType = { Standard: 5, Exhaustive: 10, Hard: 8 };
     const safeCount = countByType[paperType] || 5;
 
-    // Same source as generator-app.js's `chaptersFromStorage` — chapters
-    // are saved under the plain "chapters" key (chapters-app.js), NOT
-    // chaptersAPI's dead "ai_assessment_chapters" key above.
-    const chaptersFromStorage = JSON.parse(localStorage.getItem("chapters") || "[]");
-    const selectedChapter = chaptersFromStorage.find((ch) => ch.name === chapterName);
-
-    let chapterText =
-      selectedChapter?.text ||
-      selectedChapter?.Text ||
-      selectedChapter?.summary ||
-      selectedChapter?.Summary ||
-      chapterName ||
-      "";
+    // Look up chapter text: backend cache first (populated by listByClass/listMine),
+    // then fallback to localStorage "chapters" key for any locally-saved chapters.
+    let chapterText = await chaptersAPI.getTextByName(chapterName);
 
     chapterText = chapterText
       .replace(/PAGE \d+/g, "")
@@ -1374,96 +1379,65 @@ ${chapterText}
 // ------------------------------------------------------------
 // CHAPTERS
 // ------------------------------------------------------------
+// Chapters are now stored in the backend by an admin and automatically
+// shown to students based on their enrolled class. The parent portal's
+// test generator also uses backend chapters filtered by the child's grade.
+//
+// In-memory cache: populated by listByClass() / listMine() so that
+// mcq.generateFromChapter / papers.generateFromChapter can look up the
+// full text without an extra round-trip.
+
+let _chaptersCache = {};   // { [name]: chapterObject } — keyed by chapter name
 
 const chaptersAPI = {
 
+  // Student: chapters for the student's own enrolled class
+  listMine: async () => {
+    const result = await backendFetch("/chapters/my");
+    // Populate cache for text lookups in generateFromChapter
+    (result.chapters || []).forEach(c => { _chaptersCache[c.name] = c; });
+    return result;
+  },
+
+  // Parent portal: chapters for a given child's class (by grade string e.g. "9")
+  listByClass: async (classLevel) => {
+    const result = await backendFetch(`/chapters/by-class/${encodeURIComponent(classLevel)}`);
+    (result.chapters || []).forEach(c => { _chaptersCache[c.name] = c; });
+    return result;
+  },
+
+  // Admin: list all chapters (optionally filtered)
+  listAll: async ({ classLevel, subject } = {}) => {
+    const params = new URLSearchParams();
+    if (classLevel) params.set("class_level", classLevel);
+    if (subject)    params.set("subject", subject);
+    const qs = params.toString();
+    return backendFetch(`/chapters${qs ? "?" + qs : ""}`);
+  },
+
+  // Any authenticated user: full chapter text by ID
+  get: async (chapterId) => {
+    return backendFetch(`/chapters/${encodeURIComponent(chapterId)}`);
+  },
+
+  // Get chapter text by name — checks cache first, falls back to localStorage
+  getTextByName: async (name) => {
+    if (_chaptersCache[name]) return _chaptersCache[name].text || _chaptersCache[name].summary || "";
+    // Fallback: old localStorage chapters (pre-backend)
+    const local = JSON.parse(localStorage.getItem("chapters") || "[]");
+    const found = local.find(c => c.name === name);
+    return found ? (found.text || found.summary || "") : "";
+  },
+
+  // Legacy localStorage helpers (kept for backward compat)
   list: async () => {
-
-    return getData(
-      STORAGE_KEYS.CHAPTERS
-    );
-
+    return getData(STORAGE_KEYS.CHAPTERS);
   },
 
-
-  create: async (
-    name,
-    subject,
-    classLevel,
-    file
-  ) => {
-
-    const chapters =
-      getData(
-        STORAGE_KEYS.CHAPTERS
-      );
-
-
-    const text =
-      file
-        ? await extractTextFromMockPDF(file)
-        : "Sample extracted chapter text.";
-
-
-    const chapter = {
-
-      id: createId(),
-
-      Name: name,
-
-      Subject: subject,
-
-      ClassLevel: classLevel,
-
-      Text: text,
-
-      Summary:
-        "AI-generated summary containing key chapter concepts for paper generation.",
-
-      Status:
-        "Processed",
-
-      UploadDate:
-        new Date().toLocaleDateString()
-
-    };
-
-
-    chapters.push(chapter);
-
-    setData(
-      STORAGE_KEYS.CHAPTERS,
-      chapters
-    );
-
-
-    return chapter;
-
-  },
-
-
-  delete: async (
-    id
-  ) => {
-
-    const chapters =
-      getData(
-        STORAGE_KEYS.CHAPTERS
-      )
-      .filter(
-        chapter =>
-          chapter.id !== id
-      );
-
-
-    setData(
-      STORAGE_KEYS.CHAPTERS,
-      chapters
-    );
-
-
+  delete: async (id) => {
+    const chapters = getData(STORAGE_KEYS.CHAPTERS).filter(c => c.id !== id);
+    setData(STORAGE_KEYS.CHAPTERS, chapters);
     return true;
-
   }
 
 };
@@ -1621,16 +1595,9 @@ Section C: Long Answers
     paperSet = "1",
   } = {}) => {
 
-    const chaptersFromStorage = JSON.parse(localStorage.getItem("chapters") || "[]");
-    const selectedChapter = chaptersFromStorage.find((ch) => ch.name === chapterName);
-
-    let chapterText =
-      selectedChapter?.text ||
-      selectedChapter?.Text ||
-      selectedChapter?.summary ||
-      selectedChapter?.Summary ||
-      chapterName ||
-      "";
+    // Backend cache first (populated when the parent portal loads chapters),
+    // then localStorage for any locally-saved chapters.
+    let chapterText = await chaptersAPI.getTextByName(chapterName);
 
     chapterText = chapterText
       .replace(/PAGE \d+/g, "")
@@ -2184,6 +2151,80 @@ const extractTextFromMockPDF =
 
 
 // ------------------------------------------------------------
+// NOTIFICATIONS
+// ------------------------------------------------------------
+// Shared by both the parent and student bell icon — the backend resolves
+// which one you are from your token, same as everything else.
+
+const notificationsAPI = {
+
+  listMine: async () => {
+    return backendFetch("/notifications/my");
+  },
+
+  markRead: async (notificationId) => {
+    return backendFetch(`/notifications/${encodeURIComponent(notificationId)}/read`, {
+      method: "POST",
+    });
+  },
+
+  markAllRead: async () => {
+    return backendFetch("/notifications/read-all", {
+      method: "POST",
+    });
+  },
+
+};
+
+
+// ------------------------------------------------------------
+// ADMIN
+// ------------------------------------------------------------
+
+const adminAPI = {
+
+  // Verify current user is admin — throws if not
+  me: async () => {
+    return backendFetch("/admin/me");
+  },
+
+  // Register a new admin account (requires admin_secret from .env)
+  register: async ({ name, email, password, adminSecret }) => {
+    return backendFetch("/admin/register", {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        email,
+        password,
+        admin_secret: adminSecret,
+      }),
+    });
+  },
+
+  // Chapter management (admin-only write operations)
+  createChapter: async ({ name, subject, class_level, text, summary, original_filename }) => {
+    return backendFetch("/chapters", {
+      method: "POST",
+      body: JSON.stringify({ name, subject, class_level, text, summary, original_filename }),
+    });
+  },
+
+  listChapters: async ({ classLevel, subject } = {}) => {
+    const params = new URLSearchParams();
+    if (classLevel) params.set("class_level", classLevel);
+    if (subject)    params.set("subject", subject);
+    const qs = params.toString();
+    return backendFetch(`/chapters${qs ? "?" + qs : ""}`);
+  },
+
+  deleteChapter: async (id) => {
+    return backendFetch(`/chapters/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+};
+
+
+// ------------------------------------------------------------
 // GLOBAL API
 // ------------------------------------------------------------
 
@@ -2208,6 +2249,10 @@ const API = {
   papers: papersAPI,
 
   homework: homeworkAPI,
+
+  notifications: notificationsAPI,
+
+  admin: adminAPI,
 
   backend: {
 
