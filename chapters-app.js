@@ -1,10 +1,10 @@
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false };
   }
-  static getDerivedStateFromError(error) { return { hasError: true, error }; }
-  componentDidCatch(error, errorInfo) { console.error("Error:", error); }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error) { console.error("ChaptersApp error:", error); }
   render() {
     if (this.state.hasError) {
       return <div className="p-8 text-center text-red-500">Something went wrong loading this page.</div>;
@@ -13,337 +13,184 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+const SUBJECT_COLORS = {
+  Mathematics: "bg-blue-50 text-blue-700",
+  Physics: "bg-indigo-50 text-indigo-700",
+  Chemistry: "bg-purple-50 text-purple-700",
+  Biology: "bg-green-50 text-green-700",
+  Geography: "bg-teal-50 text-teal-700",
+  History: "bg-amber-50 text-amber-700",
+  Civics: "bg-orange-50 text-orange-700",
+  Economics: "bg-yellow-50 text-yellow-700",
+  Hindi: "bg-rose-50 text-rose-700",
+  English: "bg-sky-50 text-sky-700",
+};
+
 function ChaptersApp() {
-  try {
-    const defaultChapters = [
-      { id: 1, name: "Motion", subject: "Physics", class: "Class 9", status: "Processed", date: "2026-06-01" },
-      { id: 2, name: "Atmosphere and Climate", subject: "Geography", class: "Class 10", status: "Processed", date: "2026-06-03" },
-      { id: 3, name: "Chemical Bonding", subject: "Chemistry", class: "Class 11", status: "Processing", date: "2026-06-05" }
-    ];
+  const [chapters, setChapters] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
+  const [search, setSearch] = React.useState("");
+  const [filterSubject, setFilterSubject] = React.useState("all");
+  const [studentGrade, setStudentGrade] = React.useState(null);
 
-    const [chapters, setChapters] = React.useState(() => {
-      const saved = localStorage.getItem("chapters");
-      return saved ? JSON.parse(saved) : defaultChapters;
-    });
+  const showToast = (msg) => {
+    // minimal toast
+    const el = document.createElement("div");
+    el.className = "fixed bottom-6 right-6 bg-gray-900 text-white px-5 py-3 rounded-lg shadow-lg text-sm z-50";
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  };
 
-    const [showUploadModal, setShowUploadModal] = React.useState(false);
-    const [uploading, setUploading] = React.useState(false);
-    const [toast, setToast] = React.useState(null);
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const result = await API.chapters.listMine();
+        setChapters(result.chapters || []);
 
-    const [selectedFile, setSelectedFile] = React.useState(null);
-    const [chapterName, setChapterName] = React.useState("");
-    const [subject, setSubject] = React.useState("Physics");
-    const [classLevel, setClassLevel] = React.useState("Class 9");
-
-    const fileInputRef = React.useRef(null);
-
-    const showToast = (message) => {
-      setToast(message);
-      setTimeout(() => setToast(null), 3000);
-    };
-    const extractTextFromPDF = async (file) => {
-
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-
-  const arrayBuffer = await file.arrayBuffer();
-
-  const pdf = await pdfjsLib.getDocument({
-    data: arrayBuffer
-  }).promise;
-  console.log("TOTAL PAGES:", pdf.numPages);
-
-  let fullText = "";
-
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-
-    showToast(`OCR Processing Page ${pageNumber}/${pdf.numPages}`);
-
-    const page = await pdf.getPage(pageNumber);
-
-    const viewport = page.getViewport({
-      scale: 2.5
-    });
-
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    await page.render({
-      canvasContext: context,
-      viewport
-    }).promise;
-
-    const imageData = canvas.toDataURL("image/png");
-
-    const result = await Tesseract.recognize(
-      imageData,
-      "eng",
-      {
-        logger: m => console.log(m)
+        // Try to figure out the student's class for the header
+        const me = API.auth.getUser();
+        if (me) setStudentGrade(me.Grade || null);
+      } catch (err) {
+        console.error("chapters fetch error:", err);
+        // If backend is unavailable, fall back to localStorage
+        const local = JSON.parse(localStorage.getItem("chapters") || "[]");
+        if (local.length) {
+          setChapters(local.map(c => ({
+            id: c.id,
+            name: c.name || c.Name,
+            subject: c.subject || c.Subject,
+            class_level: c.class || c.ClassLevel || "",
+            summary: c.summary || c.Summary || "",
+            original_filename: null,
+            created_at: c.date || null,
+          })));
+        } else {
+          setError("Could not load chapters. Please check your connection.");
+        }
+      } finally {
+        setLoading(false);
       }
-    );
+    })();
+  }, []);
 
-    fullText +=
-      "\n\nPAGE " +
-      pageNumber +
-      "\n" +
-      result.data.text;
-  }
-console.log("TOTAL EXTRACTED LENGTH:", fullText.length);
-console.log("LAST 500 CHARS:");
-console.log(fullText.slice(-500));
-  return fullText;
-};
+  const subjects = [...new Set(chapters.map(c => c.subject))].filter(Boolean).sort();
 
-    const saveChapters = (updatedChapters) => {
-      setChapters(updatedChapters);
-      localStorage.setItem("chapters", JSON.stringify(updatedChapters));
-    };
+  const filtered = chapters.filter(ch => {
+    if (filterSubject !== "all" && ch.subject !== filterSubject) return false;
+    if (search && !ch.name.toLowerCase().includes(search.toLowerCase()) &&
+        !(ch.subject || "").toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
 
-    const handleFileChange = (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
+  // Group by subject for a nicer view
+  const grouped = subjects.reduce((acc, sub) => {
+    acc[sub] = filtered.filter(c => c.subject === sub);
+    return acc;
+  }, {});
 
-      if (file.type !== "application/pdf") {
-        showToast("Please upload a PDF file only.");
-        return;
-      }
+  return (
+    <DashboardLayout title="My Chapters">
+      <div className="space-y-6">
 
-      setSelectedFile(file);
-      setChapterName(file.name.replace(".pdf", "").replaceAll("_", " "));
-    };
-
-     const handleUpload = async () => {
-  if (!selectedFile) {
-    showToast("Please select a PDF file first.");
-    return;
-  }
-
-  setUploading(true);
-
-  try {
-    const extractedText = await extractTextFromPDF(selectedFile);
-    alert(
-  "Pages extracted successfully\n\n" +
-  "Length: " + extractedText.length
-);
-
-    if (!extractedText || extractedText.length < 50) {
-      showToast("Could not extract enough text from PDF.");
-      setUploading(false);
-      return;
-    }
-    console.log("TOTAL EXTRACTED LENGTH:", extractedText.length);
-console.log("LAST 1000 CHARS:");
-console.log(extractedText.slice(-1000));
-    const newChapter = {
-      id: Date.now(),
-      name: chapterName || selectedFile.name.replace(".pdf", ""),
-      subject,
-      class: classLevel,
-      status: "Processed",
-      date: new Date().toISOString().split("T")[0],
-      text: extractedText,
-      summary: extractedText.substring(0, 3000)
-    };
-
-    const updatedChapters = [newChapter, ...chapters];
-    saveChapters(updatedChapters);
-
-    setUploading(false);
-    setShowUploadModal(false);
-    setSelectedFile(null);
-    setChapterName("");
-
-    showToast("PDF text extracted and chapter saved successfully!");
-  } catch (error) {
-    console.error(error);
-    setUploading(false);
-    showToast("PDF extraction failed. Check console.");
-  }
-};
-
-    const handleDelete = (id) => {
-      const updatedChapters = chapters.filter((chapter) => chapter.id !== id);
-      saveChapters(updatedChapters);
-      showToast("Chapter deleted successfully.");
-    };
-
-    return (
-      <DashboardLayout title="Chapter Management">
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div className="relative w-96">
-              <div className="icon-search absolute left-3 top-2.5 text-gray-400"></div>
-              <input
-                type="text"
-                placeholder="Search chapters..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none"
-              />
-            </div>
-
-            <button className="btn-primary" onClick={() => setShowUploadModal(true)}>
-              <div className="icon-upload"></div> Upload PDF
-            </button>
+        {/* Header + filters */}
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <div className="relative flex-1">
+            <div className="icon-search absolute left-3 top-2.5 text-gray-400"></div>
+            <input
+              type="text"
+              placeholder="Search chapters…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[var(--primary)] focus:outline-none text-sm"
+            />
           </div>
-
-          <div className="card">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-[var(--border-color)]">
-                    <th className="px-6 py-4 font-medium text-gray-500 text-sm">Chapter Name</th>
-                    <th className="px-6 py-4 font-medium text-gray-500 text-sm">Subject</th>
-                    <th className="px-6 py-4 font-medium text-gray-500 text-sm">Class</th>
-                    <th className="px-6 py-4 font-medium text-gray-500 text-sm">Upload Date</th>
-                    <th className="px-6 py-4 font-medium text-gray-500 text-sm">Status</th>
-                    <th className="px-6 py-4 font-medium text-gray-500 text-sm text-right">Actions</th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-[var(--border-color)]">
-                  {chapters.map((chapter) => (
-                    <tr key={chapter.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 font-medium text-gray-900">{chapter.name}</td>
-                      <td className="px-6 py-4 text-gray-600">{chapter.subject}</td>
-                      <td className="px-6 py-4 text-gray-600">{chapter.class}</td>
-                      <td className="px-6 py-4 text-gray-600">{chapter.date}</td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          chapter.status === "Processed" ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
-                        }`}>
-                          {chapter.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right space-x-2">
-                        <button className="text-gray-400 hover:text-[var(--primary)] transition-colors">
-                          <div className="icon-eye text-lg"></div>
-                        </button>
-                        <button className="text-gray-400 hover:text-blue-600 transition-colors">
-                          <div className="icon-pencil text-lg"></div>
-                        </button>
-                        <button
-                          onClick={() => handleDelete(chapter.id)}
-                          className="text-gray-400 hover:text-red-600 transition-colors"
-                        >
-                          <div className="icon-trash text-lg"></div>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {subjects.length > 0 && (
+            <select
+              value={filterSubject}
+              onChange={e => setFilterSubject(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[var(--primary)] focus:outline-none"
+            >
+              <option value="all">All Subjects</option>
+              {subjects.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          )}
         </div>
 
-        {showUploadModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-gray-900">Upload Chapter PDF</h3>
-                <button onClick={() => setShowUploadModal(false)} className="text-gray-400 hover:text-gray-600">
-                  <div className="icon-x text-xl"></div>
-                </button>
-              </div>
+        {/* Class banner */}
+        {chapters.length > 0 && chapters[0].class_level && (
+          <div className="flex items-center gap-2 text-sm text-indigo-700 bg-indigo-50 rounded-lg px-4 py-2.5">
+            <div className="icon-graduation-cap"></div>
+            Showing chapters for <strong>Class {chapters[0].class_level}</strong> — your enrolled class.
+          </div>
+        )}
 
-              <div className="space-y-4">
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
+        {/* Loading */}
+        {loading && (
+          <div className="card p-12 text-center">
+            <div className="icon-loader animate-spin text-3xl text-[var(--primary)] mb-3 flex justify-center"></div>
+            <p className="text-gray-500">Loading your chapters…</p>
+          </div>
+        )}
 
-                <div
-                  onClick={() => fileInputRef.current.click()}
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-                >
-                  <div className="icon-cloud-upload text-4xl text-[var(--primary)] mb-3 mx-auto w-12 h-12 flex items-center justify-center"></div>
-                  <p className="font-medium text-gray-900">
-                    {selectedFile ? selectedFile.name : "Click to upload or drag and drop"}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">PDF files only (max 50MB)</p>
-                </div>
+        {/* Error */}
+        {!loading && error && (
+          <div className="card p-8 text-center">
+            <div className="icon-wifi-off text-4xl text-gray-300 mb-3 flex justify-center"></div>
+            <p className="text-gray-500">{error}</p>
+          </div>
+        )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Chapter Name</label>
-                  <input
-                    type="text"
-                    value={chapterName}
-                    onChange={(e) => setChapterName(e.target.value)}
-                    placeholder="Enter chapter name"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  />
-                </div>
+        {/* Empty state */}
+        {!loading && !error && chapters.length === 0 && (
+          <div className="card p-12 text-center">
+            <div className="icon-book-open text-5xl text-gray-300 mb-4 flex justify-center"></div>
+            <p className="font-medium text-gray-700">No chapters available yet</p>
+            <p className="text-sm text-gray-400 mt-1">
+              Your admin hasn't uploaded any chapters for your class yet. Check back soon!
+            </p>
+          </div>
+        )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
-                    <select
-  value={subject}
-  onChange={(e) => setSubject(e.target.value)}
-  className="w-full border border-gray-300 rounded-lg px-3 py-2"
->
-  <option>Mathematics</option>
-  <option>Physics</option>
-  <option>Chemistry</option>
-  <option>Biology</option>
-  <option>Geography</option>
-  <option>History</option>
-  <option>Civics</option>
-  <option>Economics</option>
-  <option>Hindi</option>
-  <option>English</option>
-  
-</select>
+        {/* Chapters grouped by subject */}
+        {!loading && !error && Object.entries(grouped).map(([sub, chs]) => chs.length === 0 ? null : (
+          <div key={sub}>
+            <div className="flex items-center gap-3 mb-3">
+              <span className={`px-3 py-1 rounded-full text-sm font-semibold ${SUBJECT_COLORS[sub] || "bg-gray-100 text-gray-700"}`}>
+                {sub}
+              </span>
+              <span className="text-xs text-gray-400">{chs.length} chapter{chs.length !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="card">
+              <div className="divide-y divide-[var(--border-color)]">
+                {chs.map(ch => (
+                  <div key={ch.id} className="px-5 py-4 flex items-start justify-between gap-4 hover:bg-gray-50 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-900">{ch.name}</p>
+                      {ch.summary && (
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{ch.summary.slice(0, 160)}…</p>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0 text-xs text-gray-400">
+                      {ch.created_at ? new Date(ch.created_at).toLocaleDateString() : ""}
+                    </div>
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-                    <select
-                      value={classLevel}
-                      onChange={(e) => setClassLevel(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                    >
-                      <option>Class 9</option>
-                      <option>Class 10</option>
-                      <option>Class 11</option>
-                      <option>Class 12</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-8 flex justify-end gap-3">
-                <button onClick={() => setShowUploadModal(false)} className="btn-secondary" disabled={uploading}>
-                  Cancel
-                </button>
-                <button className="btn-primary" onClick={handleUpload} disabled={uploading}>
-                  {uploading ? <div className="icon-loader animate-spin"></div> : <div className="icon-cloud-upload"></div>}
-                  {uploading ? "Processing..." : "Upload & Extract"}
-                </button>
+                ))}
               </div>
             </div>
           </div>
-        )}
+        ))}
 
-        {toast && (
-          <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in-up">
-            <div className="icon-circle-check text-green-400"></div>
-            {toast}
+        {/* Filtered empty state */}
+        {!loading && !error && chapters.length > 0 && filtered.length === 0 && (
+          <div className="card p-8 text-center">
+            <p className="text-gray-500">No chapters match your search.</p>
           </div>
         )}
-      </DashboardLayout>
-    );
-  } catch (error) {
-    console.error("ChaptersApp error:", error);
-    return null;
-  }
+      </div>
+    </DashboardLayout>
+  );
 }
 
 const root = ReactDOM.createRoot(document.getElementById("root"));

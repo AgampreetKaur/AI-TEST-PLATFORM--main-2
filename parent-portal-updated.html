@@ -1000,9 +1000,15 @@
                     Parent Portal
                 </span>
 
-                <span class="bell">
+                <span class="bell" id="notif-bell-btn" onclick="toggleNotifDropdown()" style="position:relative;cursor:pointer;">
                     <i data-lucide="bell"></i>
+                    <span id="notif-unread-dot" style="display:none;position:absolute;top:-2px;right:-2px;width:8px;height:8px;background:#EF4444;border-radius:50%;border:1.5px solid #fff;"></span>
                 </span>
+
+                <div
+                    id="notif-dropdown"
+                    style="display:none;position:absolute;top:56px;right:24px;width:320px;max-height:360px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:100;"
+                ></div>
 
             </div>
 
@@ -1172,6 +1178,14 @@
                                     Class 10
                                 </option>
 
+                                <option value="11">
+                                    Class 11
+                                </option>
+
+                                <option value="12">
+                                    Class 12
+                                </option>
+
                             </select>
 
                         </div>
@@ -1306,6 +1320,31 @@
                         Generate &amp; schedule a test
                     </h3>
 
+                    <div style="display:flex;gap:8px;margin-bottom:14px;">
+                        <button
+                            type="button"
+                            class="btn sm"
+                            id="gt-mode-mcq-btn"
+                            onclick="setGtMode('mcq')"
+                        >
+                            <i data-lucide="monitor-play"></i>
+                            Live MCQ test
+                        </button>
+                        <button
+                            type="button"
+                            class="btn sm ghost"
+                            id="gt-mode-printed-btn"
+                            onclick="setGtMode('printed')"
+                        >
+                            <i data-lucide="printer"></i>
+                            Printable test paper
+                        </button>
+                    </div>
+
+                    <p class="muted" id="gt-mode-description" style="font-size:12px;margin:0 0 14px;">
+                        Your child takes this live, in-app — auto-graded the moment they submit.
+                    </p>
+
                     <div class="form-grid">
 
                         <div>
@@ -1354,15 +1393,14 @@
                         Uses the same saved chapters (from the Chapters
                         page) and the same Gemini setup as the Test
                         Paper Generator — grounded only in that
-                        chapter's content, now generated as
-                        auto-gradable multiple-choice questions.
+                        chapter's content.
                     </p>
 
                     <div style="margin-top:14px;">
                         <button
                             class="btn"
                             id="gt-generate-btn"
-                            onclick="handleGenerateMcqs()"
+                            onclick="handleGenerate()"
                         >
                             <i data-lucide="sparkles"></i>
                             Generate Question Paper
@@ -1372,6 +1410,26 @@
                     <div id="gt-generate-status"></div>
 
                     <div id="gt-preview"></div>
+
+                    <!-- Printed-mode only: preview of the plain-text paper,
+                         plus download/print actions for the parent's own
+                         copy — nothing here is sent to the child directly,
+                         scheduling below is what makes it visible to them. -->
+                    <div id="gt-printed-preview" style="display:none;margin-top:14px;"></div>
+                    <div id="gt-print-actions" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap;">
+                        <button class="btn sm ghost" onclick="handleDownloadPrintable('questions')">
+                            <i data-lucide="file-text"></i>
+                            Download question paper (TXT)
+                        </button>
+                        <button class="btn sm ghost" onclick="handleDownloadPrintable('answers')">
+                            <i data-lucide="file-text"></i>
+                            Download answer key (TXT)
+                        </button>
+                        <button class="btn sm" onclick="handlePrintPrintable()">
+                            <i data-lucide="printer"></i>
+                            Print / save as PDF
+                        </button>
+                    </div>
 
 
                     <div
@@ -1395,7 +1453,7 @@
                             </div>
 
                             <div>
-                                <label>Date &amp; time</label>
+                                <label>Start date &amp; time</label>
                                 <input
                                     id="gt-schedule-at"
                                     type="datetime-local"
@@ -1403,7 +1461,7 @@
                             </div>
 
                             <div>
-                                <label>Time limit (minutes, optional)</label>
+                                <label id="gt-duration-label">Time limit (minutes, optional)</label>
                                 <input
                                     id="gt-duration"
                                     type="number"
@@ -1414,7 +1472,7 @@
 
                         </div>
 
-                        <p class="muted" style="font-size:12px;margin:10px 0 0;">
+                        <p class="muted" id="gt-schedule-hint" style="font-size:12px;margin:10px 0 0;">
                             The test unlocks for your child at this
                             date &amp; time (their device's local time
                             is used to show it — the time itself is
@@ -2807,47 +2865,121 @@ function selectTestChild(studentId) {
     navTo("tests");
 }
 
-function toggleGenerateTestForm() {
+async function toggleGenerateTestForm() {
     const card = $("generate-test-card");
     if (!card) return;
     const showing = card.style.display !== "none";
     card.style.display = showing ? "none" : "block";
     if (!showing) {
-        populateGtChapterSelect();
+        setGtMode("mcq");
+        await populateGtChapterSelect();
     }
+}
+
+let gtMode = "mcq";
+let generatedPrintablePaper = null;
+
+function setGtMode(mode) {
+    gtMode = mode;
+
+    $("gt-mode-mcq-btn").className = mode === "mcq" ? "btn sm" : "btn sm ghost";
+    $("gt-mode-printed-btn").className = mode === "printed" ? "btn sm" : "btn sm ghost";
+
+    $("gt-mode-description").textContent = mode === "printed"
+        ? "Generates a printable question paper and answer key — your child writes it on paper and you upload their answers for checking."
+        : "Your child takes this live, in-app — auto-graded the moment they submit.";
+
+    $("gt-duration-label").textContent = mode === "printed"
+        ? "How long to complete it (minutes, optional)"
+        : "Time limit (minutes, optional)";
+
+    $("gt-schedule-hint").textContent = mode === "printed"
+        ? "Your child gets notified when this starts, and again once the time above has passed, reminding them to upload their answers in Homework Validation."
+        : "The test unlocks for your child at this date & time (their device's local time is used to show it — the time itself is stored precisely). Leave it at the current time to make it available right away.";
+
+    resetGenerateTestForm();
+    showIcons();
 }
 
 function resetGenerateTestForm() {
     generatedTestQuestions = null;
     generatedTestMeta = null;
+    generatedPrintablePaper = null;
     $("gt-preview").innerHTML = "";
+    $("gt-printed-preview").innerHTML = "";
+    $("gt-printed-preview").style.display = "none";
+    $("gt-print-actions").style.display = "none";
     $("gt-generate-status").innerHTML = "";
     $("gt-schedule-block").style.display = "none";
     $("gt-schedule-status").innerHTML = "";
 }
 
-// Same lookup generator-app.js uses for its "Saved Chapter" dropdown —
-// chapters saved via the Chapters page, filtered to the selected subject.
-function populateGtChapterSelect() {
+// Chapter selector for the test generator.
+// Pulls chapters from the backend filtered by the selected child's enrolled
+// grade and the currently chosen subject. Falls back to localStorage chapters
+// if the backend has none for this class yet.
+async function populateGtChapterSelect() {
 
     const subject = $("gt-subject").value;
     const select = $("gt-chapter");
 
-    const chaptersFromStorage = JSON.parse(localStorage.getItem("chapters") || "[]");
-    const chapterOptions = chaptersFromStorage.filter(ch => ch.subject === subject);
+    select.innerHTML = `<option value="">Loading chapters…</option>`;
 
-    if (!chapterOptions.length) {
-        select.innerHTML = `<option value="">No saved chapters for ${escapeHTML(subject)} yet</option>`;
-        return;
+    try {
+        // Find the selected child's grade
+        const child = children.find(c => c.id === testChildId);
+        const grade = child && child.grade;
+
+        let chapterOptions = [];
+
+        if (grade && typeof API !== "undefined" && API.chapters) {
+            const result = await API.chapters.listByClass(grade);
+            const all = result.chapters || [];
+            chapterOptions = all.filter(ch => ch.subject === subject);
+        }
+
+        // Fallback: localStorage chapters (for locally-uploaded ones)
+        if (!chapterOptions.length) {
+            const local = JSON.parse(localStorage.getItem("chapters") || "[]");
+            chapterOptions = local
+                .filter(ch => (ch.subject || ch.Subject) === subject)
+                .map(ch => ({
+                    name: ch.name || ch.Name,
+                    id: ch.id,
+                }));
+        }
+
+        if (!chapterOptions.length) {
+            const grade_hint = grade ? ` for Class ${grade}` : "";
+            select.innerHTML = `<option value="">No chapters for ${escapeHTML(subject)}${grade_hint} yet</option>`;
+            return;
+        }
+
+        select.innerHTML = chapterOptions
+            .map(ch => `<option value="${escapeHTML(ch.name || ch.Name)}">${escapeHTML(ch.name || ch.Name)}</option>`)
+            .join("");
+
+    } catch (err) {
+        console.error("Chapter select error:", err);
+        // Hard fallback — localStorage
+        const local = JSON.parse(localStorage.getItem("chapters") || "[]");
+        const opts = local.filter(ch => (ch.subject || ch.Subject) === subject);
+        if (!opts.length) {
+            select.innerHTML = `<option value="">No saved chapters for ${escapeHTML(subject)} yet</option>`;
+            return;
+        }
+        select.innerHTML = opts
+            .map(ch => `<option value="${escapeHTML(ch.name || ch.Name)}">${escapeHTML(ch.name || ch.Name)}</option>`)
+            .join("");
     }
-
-    select.innerHTML = chapterOptions
-        .map(ch => `<option value="${escapeHTML(ch.name)}">${escapeHTML(ch.name)}</option>`)
-        .join("");
 }
 
-function onGtSubjectChange() {
-    populateGtChapterSelect();
+async function onGtSubjectChange() {
+    await populateGtChapterSelect();
+}
+
+function handleGenerate() {
+    return gtMode === "printed" ? handleGeneratePrintablePaper() : handleGenerateMcqs();
 }
 
 async function handleGenerateMcqs() {
@@ -2895,15 +3027,7 @@ async function handleGenerateMcqs() {
         );
 
         renderMcqPreview();
-
-        $("gt-title").value = `${chapterName} — ${paperType} Test`;
-
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        $("gt-schedule-at").value = now.toISOString().slice(0, 16);
-        $("gt-schedule-at").min = now.toISOString().slice(0, 16);
-
-        $("gt-schedule-block").style.display = "block";
+        prefillScheduleFields(`${chapterName} — ${paperType} Test`);
 
     } catch (error) {
         console.error("MCQ generation error:", error);
@@ -2913,6 +3037,75 @@ async function handleGenerateMcqs() {
         button.innerHTML = `<i data-lucide="sparkles"></i> Generate Question Paper`;
         showIcons();
     }
+}
+
+async function handleGeneratePrintablePaper() {
+
+    if (!testChildId) {
+        setElHTML("gt-generate-status", `<p class="error" style="font-size:13px;margin-top:10px;">Please select a child first.</p>`);
+        return;
+    }
+
+    const subject = $("gt-subject").value;
+    const chapterName = $("gt-chapter").value;
+    const paperSet = $("gt-paper-set").value;
+    const paperType = $("gt-paper-type").value;
+
+    if (!chapterName) {
+        setElHTML("gt-generate-status", `<p class="error" style="font-size:13px;margin-top:10px;">This subject has no saved chapters yet — add one on the Chapters page first.</p>`);
+        return;
+    }
+
+    const button = $("gt-generate-btn");
+    button.disabled = true;
+    button.innerHTML = `<div class="spinner"></div> Generating...`;
+
+    setElHTML("gt-generate-status", `<p class="muted" style="font-size:13px;margin-top:10px;">Generating a printable paper from "${escapeHTML(chapterName)}"...</p>`);
+    $("gt-printed-preview").innerHTML = "";
+    $("gt-print-actions").style.display = "none";
+    $("gt-schedule-block").style.display = "none";
+
+    try {
+
+        const { questions, answers, usedFallback } = await API.papers.generateFromChapter({
+            subject,
+            chapterName,
+            paperType,
+            paperSet,
+        });
+
+        generatedPrintablePaper = { questions, answers, subject, chapter: chapterName, paperSet, paperType };
+
+        setElHTML(
+            "gt-generate-status",
+            usedFallback
+                ? `<p class="error" style="font-size:13px;margin-top:10px;">Gemini's response couldn't be split into a question paper + answer key automatically — showing the raw output below; you may want to regenerate.</p>`
+                : `<p class="success" style="font-size:13px;margin-top:10px;">Generated a printable paper from "${escapeHTML(chapterName)}".</p>`
+        );
+
+        renderPrintablePreview();
+        $("gt-print-actions").style.display = "flex";
+        prefillScheduleFields(`${chapterName} — ${paperType} Test`);
+
+    } catch (error) {
+        console.error("Printable paper generation error:", error);
+        setElHTML("gt-generate-status", `<p class="error" style="font-size:13px;margin-top:10px;">${escapeHTML(error.message || "Generation failed.")}</p>`);
+    } finally {
+        button.disabled = false;
+        button.innerHTML = `<i data-lucide="sparkles"></i> Generate Question Paper`;
+        showIcons();
+    }
+}
+
+function prefillScheduleFields(suggestedTitle) {
+    $("gt-title").value = suggestedTitle;
+
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    $("gt-schedule-at").value = now.toISOString().slice(0, 16);
+    $("gt-schedule-at").min = now.toISOString().slice(0, 16);
+
+    $("gt-schedule-block").style.display = "block";
 }
 
 function renderMcqPreview() {
@@ -2944,6 +3137,62 @@ function renderMcqPreview() {
     showIcons();
 }
 
+function renderPrintablePreview() {
+
+    if (!generatedPrintablePaper) {
+        $("gt-printed-preview").innerHTML = "";
+        $("gt-printed-preview").style.display = "none";
+        return;
+    }
+
+    $("gt-printed-preview").style.display = "block";
+    $("gt-printed-preview").innerHTML = `
+        <div style="padding-top:14px;border-top:1px solid var(--border);">
+            <b style="font-size:13px;">Question paper preview</b>
+            <pre style="white-space:pre-wrap;font-size:12.5px;line-height:1.6;background:#F9FAFB;border-radius:8px;padding:12px;margin-top:8px;max-height:340px;overflow:auto;">${escapeHTML(generatedPrintablePaper.questions)}</pre>
+        </div>
+    `;
+}
+
+function getPrintableFileName(type, ext) {
+    const p = generatedPrintablePaper;
+    const safeChapter = (p.chapter || "paper").toLowerCase().replace(/[^a-z0-9]/g, "_");
+    const fileType = type === "questions" ? "question_paper" : "answer_key";
+    return `${safeChapter}_set_${p.paperSet}_${fileType}.${ext}`;
+}
+
+function getPrintableContent(type) {
+    if (!generatedPrintablePaper) return "";
+    return type === "questions" ? generatedPrintablePaper.questions : generatedPrintablePaper.answers;
+}
+
+function handleDownloadPrintable(type) {
+    const content = getPrintableContent(type);
+    if (!content) return;
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = getPrintableFileName(type, "txt");
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function handlePrintPrintable() {
+    if (!generatedPrintablePaper) return;
+    const win = window.open("", "_blank");
+    win.document.write(`
+        <html><head><title>${escapeHTML(generatedPrintablePaper.chapter || "Question Paper")}</title>
+        <style>body{font-family:monospace;white-space:pre-wrap;font-size:13px;line-height:1.6;padding:24px;}</style>
+        </head><body>${escapeHTML(generatedPrintablePaper.questions)}</body></html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
+}
+
 async function handleScheduleTest() {
 
     if (!testChildId) {
@@ -2951,7 +3200,13 @@ async function handleScheduleTest() {
         return;
     }
 
-    if (!generatedTestQuestions || !generatedTestQuestions.length) {
+    const isPrinted = gtMode === "printed";
+
+    if (isPrinted && !generatedPrintablePaper) {
+        setElHTML("gt-schedule-status", `<p class="error" style="font-size:13px;margin-top:10px;">Generate the paper first.</p>`);
+        return;
+    }
+    if (!isPrinted && (!generatedTestQuestions || !generatedTestQuestions.length)) {
         setElHTML("gt-schedule-status", `<p class="error" style="font-size:13px;margin-top:10px;">Generate the questions first.</p>`);
         return;
     }
@@ -2984,14 +3239,22 @@ async function handleScheduleTest() {
         await API.tests.createForChild({
             studentId: testChildId,
             title,
-            subject: generatedTestMeta?.subject,
-            chapter: generatedTestMeta?.chapter,
+            subject: isPrinted ? generatedPrintablePaper.subject : generatedTestMeta?.subject,
+            chapter: isPrinted ? generatedPrintablePaper.chapter : generatedTestMeta?.chapter,
             scheduledAtISO,
             durationMinutes: durationRaw ? Number(durationRaw) : null,
-            questions: generatedTestQuestions,
+            testMode: isPrinted ? "printed" : "mcq",
+            questions: isPrinted ? null : generatedTestQuestions,
+            paperText: isPrinted ? generatedPrintablePaper.questions : null,
+            answerKeyText: isPrinted ? generatedPrintablePaper.answers : null,
         });
 
-        setElHTML("gt-schedule-status", `<p class="success" style="font-size:13px;margin-top:10px;">Scheduled — it'll appear in your child's My Tests once it unlocks.</p>`);
+        setElHTML(
+            "gt-schedule-status",
+            isPrinted
+                ? `<p class="success" style="font-size:13px;margin-top:10px;">Scheduled — your child will be notified when it starts and reminded to upload their answers once the time is up.</p>`
+                : `<p class="success" style="font-size:13px;margin-top:10px;">Scheduled — it'll appear in your child's My Tests once it unlocks.</p>`
+        );
 
         resetGenerateTestForm();
         $("generate-test-card").style.display = "none";
@@ -3052,13 +3315,14 @@ async function loadTestsForSelectedChild() {
                 <div class="row" style="margin-bottom:0;">
                     <div>
                         <b>${escapeHTML(test.title)}</b>
+                        ${test.test_mode === "printed" ? `<span class="badge" style="background:#F3F4F6;color:#374151;margin-left:6px;">Printed</span>` : ""}
                         <div class="muted" style="font-size:12px;margin-top:2px;">
                             ${escapeHTML(test.subject || "")}${test.subject && test.chapter ? " · " : ""}${escapeHTML(test.chapter || "")}
-                            · ${test.total_questions} question(s)
+                            ${test.test_mode === "printed" ? "" : ` · ${test.total_questions} question(s)`}
                             ${test.duration_minutes ? ` · ${test.duration_minutes} min` : ""}
                         </div>
                         <div class="muted" style="font-size:12px;margin-top:2px;">
-                            Scheduled: ${new Date(test.scheduled_at).toLocaleString()}
+                            Starts: ${new Date(test.scheduled_at).toLocaleString()}
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;">
@@ -3069,6 +3333,11 @@ async function loadTestsForSelectedChild() {
                     ${test.status === "completed" ? `
                         <button class="btn sm ghost" onclick="viewTestResult('${test.id}')">
                             <i data-lucide="eye"></i> View result
+                        </button>
+                    ` : ""}
+                    ${test.test_mode === "printed" ? `
+                        <button class="btn sm ghost" onclick="viewPrintedPaper('${test.id}')">
+                            <i data-lucide="file-text"></i> View paper
                         </button>
                     ` : ""}
                     <button class="btn sm ghost" onclick="deleteScheduledTest('${test.id}')">
@@ -3083,6 +3352,28 @@ async function loadTestsForSelectedChild() {
     } catch (error) {
         console.error("Load tests error:", error);
         container.innerHTML = `<p class="error" style="font-size:13px;">${escapeHTML(error.message || "Could not load tests.")}</p>`;
+    }
+}
+
+async function viewPrintedPaper(testId) {
+    try {
+        const paper = await backendFetch(`/tests/${encodeURIComponent(testId)}/paper`);
+        const card = $("test-result-card");
+        card.style.display = "block";
+        card.innerHTML = `
+            <h3><i data-lucide="file-text"></i> ${escapeHTML(paper.title)}</h3>
+            <b style="font-size:13px;">Question paper</b>
+            <pre style="white-space:pre-wrap;font-size:12.5px;line-height:1.6;background:#F9FAFB;border-radius:8px;padding:12px;margin:8px 0 14px;max-height:300px;overflow:auto;">${escapeHTML(paper.paper_text || "")}</pre>
+            ${paper.answer_key_text ? `
+                <b style="font-size:13px;">Answer key</b>
+                <pre style="white-space:pre-wrap;font-size:12.5px;line-height:1.6;background:#F9FAFB;border-radius:8px;padding:12px;margin-top:8px;max-height:300px;overflow:auto;">${escapeHTML(paper.answer_key_text)}</pre>
+            ` : ""}
+        `;
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        showIcons();
+    } catch (error) {
+        console.error("View printed paper error:", error);
+        alert(error.message || "Could not load this paper.");
     }
 }
 
@@ -5938,6 +6229,109 @@ function closeSidebar() {
     $("sidebar").classList.remove("open");
     $("sidebar-backdrop").classList.remove("show");
 }
+
+
+/* ============================================================
+   NOTIFICATIONS (bell icon)
+============================================================ */
+
+let notifDropdownOpen = false;
+let knownNotifIds = new Set();
+
+function notifTimeAgo(isoString) {
+    if (!isoString) return "";
+    const diffMs = Date.now() - new Date(isoString).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+}
+
+function notifIconFor(type) {
+    if (type === "test_starting") return "zap";
+    if (type === "submit_reminder") return "alarm-clock";
+    return "calendar-clock";
+}
+
+function renderNotifDropdown(notifs) {
+    const el = $("notif-dropdown");
+    if (!notifs.length) {
+        el.innerHTML = `<p class="muted" style="font-size:13px;text-align:center;padding:20px;">No notifications yet.</p>`;
+        return;
+    }
+    el.innerHTML = notifs.map(n => `
+        <div style="padding:10px 14px;border-bottom:1px solid #F1F5F9;">
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+                <i data-lucide="${notifIconFor(n.type)}" style="width:16px;height:16px;margin-top:2px;flex-shrink:0;"></i>
+                <div style="min-width:0;">
+                    <div style="font-size:13px;color:#111827;">${escapeHTML(n.title)}</div>
+                    ${n.message ? `<div style="font-size:12px;color:#6B7280;margin-top:2px;">${escapeHTML(n.message)}</div>` : ""}
+                    <div style="font-size:11px;color:#9CA3AF;margin-top:2px;">${notifTimeAgo(n.created_at)}</div>
+                </div>
+            </div>
+        </div>
+    `).join("");
+    showIcons();
+}
+
+async function loadNotifications(isPoll) {
+    try {
+        const result = await API.notifications.listMine();
+
+        if (isPoll && typeof Notification !== "undefined" && Notification.permission === "granted") {
+            result.notifications.forEach(n => {
+                if (!knownNotifIds.has(n.id)) {
+                    new Notification(n.title, { body: n.message || "" });
+                }
+            });
+        }
+
+        knownNotifIds = new Set(result.notifications.map(n => n.id));
+        $("notif-unread-dot").style.display = result.unread_count > 0 ? "block" : "none";
+
+        if (notifDropdownOpen) {
+            renderNotifDropdown(result.notifications);
+        }
+    } catch (error) {
+        console.error("Failed to load notifications:", error);
+    }
+}
+
+async function toggleNotifDropdown() {
+    notifDropdownOpen = !notifDropdownOpen;
+    const dropdown = $("notif-dropdown");
+    dropdown.style.display = notifDropdownOpen ? "block" : "none";
+
+    if (notifDropdownOpen) {
+        try {
+            const result = await API.notifications.listMine();
+            renderNotifDropdown(result.notifications);
+            if (result.unread_count > 0) {
+                await API.notifications.markAllRead();
+                $("notif-unread-dot").style.display = "none";
+            }
+        } catch (error) {
+            console.error("Failed to load notifications:", error);
+        }
+    }
+}
+
+document.addEventListener("click", (e) => {
+    const bell = $("notif-bell-btn");
+    const dropdown = $("notif-dropdown");
+    if (notifDropdownOpen && bell && dropdown && !bell.contains(e.target) && !dropdown.contains(e.target)) {
+        notifDropdownOpen = false;
+        dropdown.style.display = "none";
+    }
+});
+
+loadNotifications(false);
+if (typeof Notification !== "undefined" && Notification.permission === "default") {
+    Notification.requestPermission();
+}
+setInterval(() => loadNotifications(true), 20000);
 
 
 /* ============================================================

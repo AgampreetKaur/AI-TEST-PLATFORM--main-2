@@ -42,6 +42,7 @@ function TestsApp() {
     const [submitting, setSubmitting] = React.useState(false);
 
     const [result, setResult] = React.useState(null); // TestResultOut, shown after submit or "View result"
+    const [printedPaper, setPrintedPaper] = React.useState(null); // { title, subject, chapter, paper_text } for a printed test
 
     const knownAvailableIds = React.useRef(new Set());
 
@@ -128,6 +129,16 @@ function TestsApp() {
         console.error("Start test error:", error);
         showToast(error.message || "Could not start this test.");
         loadTests(false);
+      }
+    };
+
+    const handleViewPaper = async (testId) => {
+      try {
+        const paper = await API.tests.getPaper(testId);
+        setPrintedPaper(paper);
+      } catch (error) {
+        console.error("View paper error:", error);
+        showToast(error.message || "Could not load this paper.");
       }
     };
 
@@ -263,6 +274,43 @@ function TestsApp() {
     }
 
     // --------------------------------------------------------
+    // RENDER: a printed test's paper
+    // --------------------------------------------------------
+
+    if (printedPaper) {
+      return (
+        <DashboardLayout title="My Tests">
+          <div className="max-w-3xl mx-auto">
+            <div className="card p-6 mb-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">{printedPaper.title}</h2>
+              <p className="text-sm text-gray-500">
+                {printedPaper.subject}{printedPaper.subject && printedPaper.chapter ? " · " : ""}{printedPaper.chapter}
+                {printedPaper.duration_minutes ? ` · ${printedPaper.duration_minutes} min to complete` : ""}
+              </p>
+            </div>
+
+            <div className="card p-5 mb-6">
+              <p className="font-semibold text-gray-900 mb-2">Question paper</p>
+              <pre className="whitespace-pre-wrap text-sm bg-gray-50 rounded-lg p-4 max-h-96 overflow-auto">{printedPaper.paper_text}</pre>
+            </div>
+
+            <div className="card p-4 mb-6 bg-indigo-50/50">
+              <p className="text-sm text-gray-700">
+                <div className="icon-info inline-block mr-2 text-[var(--primary)]"></div>
+                Write your answers on paper, then upload a photo in <b>Homework Validation</b> before the time is up — you'll get a notification reminding you.
+              </p>
+            </div>
+
+            <button className="btn-secondary" onClick={() => setPrintedPaper(null)}>
+              <div className="icon-arrow-left"></div>
+              Back to My Tests
+            </button>
+          </div>
+        </DashboardLayout>
+      );
+    }
+
+    // --------------------------------------------------------
     // RENDER: a result screen
     // --------------------------------------------------------
 
@@ -366,16 +414,29 @@ function TestsApp() {
                   {available.map((t) => (
                     <div key={t.id} className="card p-4 flex items-center justify-between flex-wrap gap-3">
                       <div>
-                        <p className="font-medium text-gray-900">{t.title}</p>
+                        <p className="font-medium text-gray-900">
+                          {t.title}
+                          {t.test_mode === "printed" && (
+                            <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full align-middle">Printed</span>
+                          )}
+                        </p>
                         <p className="text-xs text-gray-500">
-                          {t.subject}{t.subject && t.chapter ? " · " : ""}{t.chapter} · {t.total_questions} question(s)
+                          {t.subject}{t.subject && t.chapter ? " · " : ""}{t.chapter}
+                          {t.test_mode === "printed" ? "" : ` · ${t.total_questions} question(s)`}
                           {t.duration_minutes ? ` · ${t.duration_minutes} min` : ""}
                         </p>
                       </div>
-                      <button className="btn-primary text-sm py-1.5" onClick={() => handleStart(t.id)}>
-                        <div className="icon-play"></div>
-                        Start test
-                      </button>
+                      {t.test_mode === "printed" ? (
+                        <button className="btn-secondary text-sm py-1.5" onClick={() => handleViewPaper(t.id)}>
+                          <div className="icon-file-text"></div>
+                          View / download paper
+                        </button>
+                      ) : (
+                        <button className="btn-primary text-sm py-1.5" onClick={() => handleStart(t.id)}>
+                          <div className="icon-play"></div>
+                          Start test
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -392,9 +453,15 @@ function TestsApp() {
                   {upcoming.map((t) => (
                     <div key={t.id} className="card p-4 flex items-center justify-between flex-wrap gap-3 opacity-80">
                       <div>
-                        <p className="font-medium text-gray-900">{t.title}</p>
+                        <p className="font-medium text-gray-900">
+                          {t.title}
+                          {t.test_mode === "printed" && (
+                            <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full align-middle">Printed</span>
+                          )}
+                        </p>
                         <p className="text-xs text-gray-500">
-                          {t.subject}{t.subject && t.chapter ? " · " : ""}{t.chapter} · {t.total_questions} question(s)
+                          {t.subject}{t.subject && t.chapter ? " · " : ""}{t.chapter}
+                          {t.test_mode === "printed" ? "" : ` · ${t.total_questions} question(s)`}
                         </p>
                       </div>
                       <span className="px-3 py-1 bg-gray-100 text-gray-600 text-xs rounded-full font-medium">

@@ -874,6 +874,39 @@ function LoginApp() {
 
                         </button>
 
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                selectUserType("admin")
+                            }
+                            className="w-full border border-gray-200 rounded-xl p-5 text-left hover:border-indigo-500 hover:bg-indigo-50 transition-all"
+                        >
+
+                            <div className="flex items-center gap-4">
+
+                                <div className="w-11 h-11 bg-gray-100 rounded-lg flex items-center justify-center">
+
+                                    <div className="icon-shield-check text-xl text-gray-600"></div>
+
+                                </div>
+
+                                <div>
+
+                                    <div className="font-semibold text-lg">
+                                        I'm an Admin
+                                    </div>
+
+                                    <div className="text-sm text-gray-500">
+                                        Manage chapters and platform content
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                        </button>
+
                     </div>
 
 
@@ -1441,7 +1474,7 @@ function LoginApp() {
     // STUDENT LOGIN SCREEN
     // ---------------------------------------------------------
 
-    return (
+    if (userType === "student") { return (
 
         <div className="min-h-screen flex items-center justify-center p-4">
 
@@ -1589,10 +1622,159 @@ function LoginApp() {
 
         </div>
 
-    );
+    ); }
+
+    // ---------------------------------------------------------
+    // ADMIN LOGIN SCREEN
+    // ---------------------------------------------------------
+
+    if (userType === "admin") {
+
+        const handleAdminLogin = async (e) => {
+
+            e.preventDefault();
+
+            setLoading(true);
+            setError("");
+
+            try {
+
+                const session = await API.auth.login(
+                    email.trim(),
+                    password,
+                    "admin"
+                );
+
+                if (!session || !session.id) {
+                    throw new Error("Login failed: no session returned.");
+                }
+
+                // Verify the account actually has admin role
+                try {
+                    await API.admin.me();
+                } catch {
+                    await API.auth.logout();
+                    throw new Error("This account does not have admin access.");
+                }
+
+                window.location.href = "admin-portal.html";
+
+            } catch (err) {
+
+                console.error("Admin login error:", err);
+                setError(err.message || "Admin login failed.");
+
+            } finally {
+
+                setLoading(false);
+
+            }
+
+        };
+
+        return (
+
+            <div className="min-h-screen flex items-center justify-center p-4">
+
+                <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+
+                    <button
+                        type="button"
+                        onClick={() => selectUserType(null)}
+                        className="text-sm text-gray-500 hover:text-indigo-600 mb-5"
+                    >
+                        ← Change account type
+                    </button>
+
+
+                    <div className="text-center mb-8">
+
+                        <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+
+                            <div className="icon-shield-check text-2xl text-gray-700"></div>
+
+                        </div>
+
+                        <h2 className="text-2xl font-bold">
+                            Admin Login
+                        </h2>
+
+                        <p className="text-gray-500 mt-2">
+                            Sign in to manage chapters and platform content.
+                        </p>
+
+                    </div>
+
+
+                    {error && (
+                        <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-lg text-sm mb-4">
+                            {error}
+                        </div>
+                    )}
+
+
+                    <form onSubmit={handleAdminLogin} className="space-y-4">
+
+                        <div>
+
+                            <label className="block text-sm font-medium mb-1">
+                                Admin Email
+                            </label>
+
+                            <input
+                                type="email"
+                                required
+                                autoComplete="email"
+                                placeholder="Enter admin email"
+                                className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                            />
+
+                        </div>
+
+
+                        <div>
+
+                            <label className="block text-sm font-medium mb-1">
+                                Password
+                            </label>
+
+                            <input
+                                type="password"
+                                required
+                                autoComplete="current-password"
+                                placeholder="Enter password"
+                                className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-[var(--primary)] outline-none"
+                                value={password}
+                                onChange={e => setPassword(e.target.value)}
+                            />
+
+                        </div>
+
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full bg-gray-800 text-white py-2 rounded-lg font-medium hover:bg-gray-900 transition-colors flex justify-center items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+
+                            {loading && <div className="icon-loader animate-spin"></div>}
+                            {loading ? "Signing in…" : "Sign In as Admin"}
+
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        );
+
+    }
 
 }
-
 
 // -------------------------------------------------------------
 // RENDER
